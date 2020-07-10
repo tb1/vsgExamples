@@ -8,7 +8,9 @@
 #include <osgDB/ReadFile>
 #include <osgGA/TrackballManipulator>
 #include <osgGA/AnimationPathManipulator>
+#include <osgGA/StateSetManipulator>
 #include <osgViewer/Viewer>
+#include <osgViewer/ViewerEventHandlers>
 
 #include <iostream>
 #include <chrono>
@@ -264,7 +266,15 @@ int main(int argc, char** argv)
 
         // set up the camera
         auto lookAt = vsg::LookAt::create(centre+vsg::dvec3(0.0, -radius*3.5, 0.0), centre, vsg::dvec3(0.0, 0.0, 1.0));
-        auto perspective = vsg::Perspective::create(30.0, static_cast<double>(vsg_window->extent2D().width) / static_cast<double>(vsg_window->extent2D().height), nearFarRatio*radius, radius * 4.5);
+        vsg::ref_ptr<vsg::ProjectionMatrix> perspective;
+        if (vsg::ref_ptr<vsg::EllipsoidModel> ellipsoidModel(vsg_scene->getObject<vsg::EllipsoidModel>("EllipsoidModel")); ellipsoidModel)
+        {
+            perspective = vsg::EllipsoidPerspective::create(lookAt, ellipsoidModel, 30.0, static_cast<double>(vsg_window->extent2D().width) / static_cast<double>(vsg_window->extent2D().height), nearFarRatio, horizonMountainHeight);
+        }
+        else
+        {
+            perspective = vsg::Perspective::create(30.0, static_cast<double>(vsg_window->extent2D().width) / static_cast<double>(vsg_window->extent2D().height), nearFarRatio*radius, radius * 4.5);
+        }
         auto vsg_camera = vsg::Camera::create(perspective, lookAt, vsg::ViewportState::create(vsg_window->extent2D()));
 
         // add close handler to respond the close window button and pressing escape
@@ -284,6 +294,9 @@ int main(int argc, char** argv)
     {
         osg_viewer.setSceneData(osg_scene);
         osg_viewer.setUpViewInWindow(windowTraits->width, 0, windowTraits->width, windowTraits->height);
+
+        osg_viewer.addEventHandler( new osgGA::StateSetManipulator(osg_viewer.getCamera()->getOrCreateStateSet()) );
+        osg_viewer.addEventHandler(new osgViewer::StatsHandler);
 
         if (pathFilename.empty())  osg_viewer.setCameraManipulator(new osgGA::TrackballManipulator());
         else osg_viewer.setCameraManipulator(new osgGA::AnimationPathManipulator(pathFilename));
