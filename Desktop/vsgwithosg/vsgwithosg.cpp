@@ -5,6 +5,11 @@
 #include <vsgXchange/ShaderCompiler.h>
 #endif
 
+#include <osgDB/ReadFile>
+#include <osgGA/TrackballManipulator>
+#include <osgGA/AnimationPathManipulator>
+#include <osgViewer/Viewer>
+
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -181,174 +186,132 @@ vsg::ref_ptr<vsg::Node> createTextureQuad(vsg::ref_ptr<vsg::Data> sourceData)
     return scenegraph;
 }
 
+vsg::ref_ptr<vsg::AnimationPath> readAnimationPath(const vsg::Path& pathFilename)
+{
+    if (pathFilename.empty()) return {};
+
+    std::ifstream in(pathFilename);
+    if (!in)
+    {
+        std::cout << "AnimationPat: Could not open animation path file \"" << pathFilename << "\".\n";
+        return {};
+    }
+
+    vsg::ref_ptr<vsg::AnimationPath> animationPath(new vsg::AnimationPath);
+    animationPath->read(in);
+
+    return animationPath;
+}
 
 int main(int argc, char** argv)
 {
     // set up defaults and read command line arguments to override them
     auto options = vsg::Options::create();
     auto windowTraits = vsg::WindowTraits::create();
-    windowTraits->windowTitle = "vsgviewer";
+    windowTraits->windowTitle = "VulkanSceneGraph Window";
+    windowTraits->width = 800;
+    windowTraits->height = 600;
 
     // set up defaults and read command line arguments to override them
     vsg::CommandLine arguments(&argc, argv);
     windowTraits->debugLayer = arguments.read({"--debug","-d"});
     windowTraits->apiDumpLayer = arguments.read({"--api","-a"});
-    if (arguments.read("--double-buffer")) windowTraits->swapchainPreferences.imageCount = 2;
-    if (arguments.read("--triple-buffer")) windowTraits->swapchainPreferences.imageCount = 3; // default
-    if (arguments.read("--IMMEDIATE")) windowTraits->swapchainPreferences.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-    if (arguments.read("--FIFO")) windowTraits->swapchainPreferences.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if (arguments.read("--FIFO_RELAXED")) windowTraits->swapchainPreferences.presentMode = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-    if (arguments.read("--MAILBOX")) windowTraits->swapchainPreferences.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-    if (arguments.read({"-t", "--test"})) { windowTraits->swapchainPreferences.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; windowTraits->fullscreen = true; }
-    if (arguments.read({"--st", "--small-test"})) { windowTraits->swapchainPreferences.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; windowTraits->width = 192, windowTraits->height = 108; windowTraits->decoration = false; }
-    if (arguments.read({"--fullscreen", "--fs"})) windowTraits->fullscreen = true;
     if (arguments.read({"--window", "-w"}, windowTraits->width, windowTraits->height)) { windowTraits->fullscreen = false; }
-    if (arguments.read({"--no-frame", "--nf"})) windowTraits->decoration = false;
-    if (arguments.read("--or")) windowTraits->overrideRedirect = true;
     arguments.read("--screen", windowTraits->screenNum);
     arguments.read("--display", windowTraits->display);
-    arguments.read("--samples", windowTraits->samples);
-    auto numFrames = arguments.value(-1, "-f");
     auto pathFilename = arguments.value(std::string(),"-p");
-    auto loadLevels = arguments.value(0, "--load-levels");
     auto horizonMountainHeight = arguments.value(0.0, "--hmh");
 
     if (arguments.errors()) return arguments.writeErrorMessages(std::cerr);
 
-#ifdef USE_VSGXCHANGE
+    if (argc <= 1)
+    {
+        std::cout<<"Please specifiy a model to load on commnadline."<<std::endl;
+    }
+
+    #ifdef USE_VSGXCHANGE
     // add use of vsgXchange's support for reading and writing 3rd party file formats
     options->readerWriter = vsgXchange::ReaderWriter_all::create();
-#endif
+    #endif
+
+    vsg::Path filename = arguments[1];
+
+    // load VulkanSceneGraph scene graph
+    auto vsg_scene = vsg::read_cast<vsg::Node>(filename, options);
+
+    // load OpenSceneGraph scene graph
+    auto osg_scene = osgDB::readRefNodeFile(filename);
 
 
-    auto group = vsg::Group::create();
-
-    vsg::Path path;
-
-    // read any vsg files
-    for (int i=1; i<argc; ++i)
+    // create the VulkanSceneGraph viewer and assign window(s) to it
+    auto vsg_viewer = vsg::Viewer::create();
     {
-        vsg::Path filename = arguments[i];
-        path = vsg::filePath(filename);
-
-        auto object = vsg::read(filename, options);
-        if (auto node = object.cast<vsg::Node>(); node)
+        vsg::ref_ptr<vsg::Window> vsg_window(vsg::Window::create(windowTraits));
+        if (!vsg_window)
         {
-            group->addChild(node);
-        }
-        else if (auto data = object.cast<vsg::Data>(); data)
-        {
-            if (auto node = createTextureQuad(data); node)
-            {
-                group->addChild(node);
-            }
-        }
-        else if (object)
-        {
-            std::cout<<"Unable to view object of type "<<object->className()<<std::endl;
-        }
-        else
-        {
-            std::cout<<"Unable to load model from file "<<filename<<std::endl;
-        }
-    }
-
-    if (group->getNumChildren()==0)
-    {
-        std::cout<<"Please specify a 3d model file on the command line."<<std::endl;
-        return 1;
-    }
-
-    vsg::ref_ptr<vsg::Node> vsg_scene;
-    if (group->getChildren().size()==1) vsg_scene = group->getChild(0);
-    else vsg_scene = group;
-
-    // create the viewer and assign window(s) to it
-    auto viewer = vsg::Viewer::create();
-
-    vsg::ref_ptr<vsg::Window> window(vsg::Window::create(windowTraits));
-    if (!window)
-    {
-        std::cout<<"Could not create windows."<<std::endl;
-        return 1;
-    }
-
-    viewer->addWindow(window);
-
-    // compute the bounds of the scene graph to help position camera
-    vsg::ComputeBounds computeBounds;
-    vsg_scene->accept(computeBounds);
-    vsg::dvec3 centre = (computeBounds.bounds.min+computeBounds.bounds.max)*0.5;
-    double radius = vsg::length(computeBounds.bounds.max-computeBounds.bounds.min)*0.6;
-    double nearFarRatio = 0.001;
-
-    // set up the camera
-    auto lookAt = vsg::LookAt::create(centre+vsg::dvec3(0.0, -radius*3.5, 0.0), centre, vsg::dvec3(0.0, 0.0, 1.0));
-
-    vsg::ref_ptr<vsg::ProjectionMatrix> perspective;
-    if (vsg::ref_ptr<vsg::EllipsoidModel> ellipsoidModel(vsg_scene->getObject<vsg::EllipsoidModel>("EllipsoidModel")); ellipsoidModel)
-    {
-        perspective = vsg::EllipsoidPerspective::create(lookAt, ellipsoidModel, 30.0, static_cast<double>(window->extent2D().width) / static_cast<double>(window->extent2D().height), nearFarRatio, horizonMountainHeight);
-    }
-    else
-    {
-        perspective = vsg::Perspective::create(30.0, static_cast<double>(window->extent2D().width) / static_cast<double>(window->extent2D().height), nearFarRatio*radius, radius * 4.5);
-    }
-
-    auto camera = vsg::Camera::create(perspective, lookAt, vsg::ViewportState::create(window->extent2D()));
-
-    // add close handler to respond the close window button and pressing escape
-    viewer->addEventHandler(vsg::CloseHandler::create(viewer));
-
-    if (pathFilename.empty())
-    {
-        viewer->addEventHandler(vsg::Trackball::create(camera));
-    }
-    else
-    {
-        std::ifstream in(pathFilename);
-        if (!in)
-        {
-            std::cout << "AnimationPat: Could not open animation path file \"" << pathFilename << "\".\n";
+            std::cout<<"Could not create window."<<std::endl;
             return 1;
         }
 
-        vsg::ref_ptr<vsg::AnimationPath> animationPath(new vsg::AnimationPath);
-        animationPath->read(in);
+        vsg_viewer->addWindow(vsg_window);
 
-        viewer->addEventHandler(vsg::AnimationPathHandler::create(camera, animationPath, viewer->start_point()));
+        // compute the bounds of the scene graph to help position camera
+        vsg::ComputeBounds computeBounds;
+        vsg_scene->accept(computeBounds);
+        vsg::dvec3 centre = (computeBounds.bounds.min+computeBounds.bounds.max)*0.5;
+        double radius = vsg::length(computeBounds.bounds.max-computeBounds.bounds.min)*0.6;
+        double nearFarRatio = 0.001;
+
+        // set up the camera
+        auto lookAt = vsg::LookAt::create(centre+vsg::dvec3(0.0, -radius*3.5, 0.0), centre, vsg::dvec3(0.0, 0.0, 1.0));
+        auto perspective = vsg::Perspective::create(30.0, static_cast<double>(vsg_window->extent2D().width) / static_cast<double>(vsg_window->extent2D().height), nearFarRatio*radius, radius * 4.5);
+        auto vsg_camera = vsg::Camera::create(perspective, lookAt, vsg::ViewportState::create(vsg_window->extent2D()));
+
+        // add close handler to respond the close window button and pressing escape
+        vsg_viewer->addEventHandler(vsg::CloseHandler::create(vsg_viewer));
+
+        if (pathFilename.empty()) vsg_viewer->addEventHandler(vsg::Trackball::create(vsg_camera));
+        else vsg_viewer->addEventHandler(vsg::AnimationPathHandler::create(vsg_camera, readAnimationPath(pathFilename), vsg_viewer->start_point()));
+
+        auto commandGraph = vsg::createCommandGraphForView(vsg_window, vsg_camera, vsg_scene);
+        vsg_viewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
+
+        vsg_viewer->compile();
     }
 
-    // if required pre load specific number of PagedLOD levels.
-    if (loadLevels > 0)
+    // set up OpenSceneGraph viewer
+    osgViewer::Viewer osg_viewer;
     {
-        vsg::LoadPagedLOD loadPagedLOD(camera, loadLevels);
+        osg_viewer.setSceneData(osg_scene);
+        osg_viewer.setUpViewInWindow(windowTraits->width, 0, windowTraits->width, windowTraits->height);
 
-        auto startTime =std::chrono::steady_clock::now();
+        if (pathFilename.empty())  osg_viewer.setCameraManipulator(new osgGA::TrackballManipulator());
+        else osg_viewer.setCameraManipulator(new osgGA::AnimationPathManipulator(pathFilename));
 
-        vsg_scene->accept(loadPagedLOD);
+        osg_viewer.realize();
 
-        auto time = std::chrono::duration<float, std::chrono::milliseconds::period>(std::chrono::steady_clock::now()-startTime).count();
-        std::cout<<"No. of tiles loaed "<<loadPagedLOD.numTiles<<" in "<<time<<"ms."<<std::endl;
+        auto osg_window = dynamic_cast<osgViewer::GraphicsWindow*>(osg_viewer.getCamera()->getGraphicsContext());
+        osg_window->setWindowName("OpenSceneGraph Window");
     }
-
-    auto commandGraph = vsg::createCommandGraphForView(window, camera, vsg_scene);
-    viewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
-
-
-    viewer->compile();
 
     // rendering main loop
-    while (viewer->advanceToNextFrame() && (numFrames<0 || (numFrames--)>0))
+    while (vsg_viewer->advanceToNextFrame() && !osg_viewer.done())
     {
-        // pass any events into EventHandlers assigned to the Viewer
-        viewer->handleEvents();
+        // render VulkanScenGraph frame
+        {
+            vsg_viewer->handleEvents();
+            vsg_viewer->update();
+            vsg_viewer->recordAndSubmit();
+            vsg_viewer->present();
+        }
 
-        viewer->update();
-
-        viewer->recordAndSubmit();
-
-        viewer->present();
+        // render OpenScenGraph frame
+        {
+            osg_viewer.advance();
+            osg_viewer.updateTraversal();
+            osg_viewer.eventTraversal();
+            osg_viewer.renderingTraversals();
+        }
     }
 
     // clean up done automatically thanks to ref_ptr<>

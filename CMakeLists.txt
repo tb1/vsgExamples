@@ -31,6 +31,7 @@ find_package(OpenThreads QUIET)
 find_package(osg QUIET)
 find_package(osgUtil QUIET)
 find_package(osgDB QUIET)
+find_package(osgGA QUIET)
 find_package(osgViewer QUIET)
 find_package(OpenGL QUIET)
 
