@@ -11,3 +11,7 @@ add_subdirectory(vsgexecutecommands)
 add_subdirectory(vsgortho)
 add_subdirectory(vsgscreenshot)
 add_subdirectory(vsgheadless)
+
+if (OSG_FOUND AND OSGDB_FOUND AND OSGVIEWER_FOUND AND OSGUTIL_FOUND AND OPENGL_FOUND)
+add_subdirectory(vsgwithosg)
+endif()

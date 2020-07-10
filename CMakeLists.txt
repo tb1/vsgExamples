@@ -26,6 +26,15 @@ find_package(vsg REQUIRED)
 # find the optional vsgXchange that can be used for reading and range of image and 3d model formats and shader compilation
 find_package(vsgXchange QUIET)
 
+# find optional OpenSceneGraph, only used by the vsgwithosg example
+find_package(OpenThreads QUIET)
+find_package(osg QUIET)
+find_package(osgUtil QUIET)
+find_package(osgDB QUIET)
+find_package(osgViewer QUIET)
+find_package(OpenGL QUIET)
+
+
 # set the use of C++17 globally as all examples require it
 set(CMAKE_CXX_STANDARD 17)
 
