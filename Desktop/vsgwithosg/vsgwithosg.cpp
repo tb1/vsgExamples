@@ -209,6 +209,11 @@ int main(int argc, char** argv)
 {
     // set up defaults and read command line arguments to override them
     auto options = vsg::Options::create();
+    #ifdef USE_VSGXCHANGE
+    // add use of vsgXchange's support for reading and writing 3rd party file formats
+    options->readerWriter = vsgXchange::ReaderWriter_all::create();
+    #endif
+
     auto windowTraits = vsg::WindowTraits::create();
     windowTraits->windowTitle = "VulkanSceneGraph Window";
     windowTraits->width = 800;
@@ -216,6 +221,7 @@ int main(int argc, char** argv)
 
     // set up defaults and read command line arguments to override them
     vsg::CommandLine arguments(&argc, argv);
+    arguments.read(options);
     windowTraits->debugLayer = arguments.read({"--debug","-d"});
     windowTraits->apiDumpLayer = arguments.read({"--api","-a"});
     if (arguments.read({"--window", "-w"}, windowTraits->width, windowTraits->height)) { windowTraits->fullscreen = false; }
@@ -230,11 +236,6 @@ int main(int argc, char** argv)
     {
         std::cout<<"Please specifiy a model to load on commnadline."<<std::endl;
     }
-
-    #ifdef USE_VSGXCHANGE
-    // add use of vsgXchange's support for reading and writing 3rd party file formats
-    options->readerWriter = vsgXchange::ReaderWriter_all::create();
-    #endif
 
     vsg::Path filename = arguments[1];
 
