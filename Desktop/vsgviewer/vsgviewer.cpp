@@ -184,11 +184,10 @@ vsg::ref_ptr<vsg::Node> createTextureQuad(vsg::ref_ptr<vsg::Data> sourceData)
 
 int main(int argc, char** argv)
 {
-    // set up defaults and read command line arguments to override them
-    auto options = vsg::Options::create();
 #ifdef USE_VSGXCHANGE
-    // add use of vsgXchange's support for reading and writing 3rd party file formats
-    options->readerWriter = vsgXchange::ReaderWriter_all::create();
+    auto options = vsg::Options::create(vsgXchange::ReaderWriter_all::create()); // use vsgXchange's for reading and writing 3rd party file formats
+#else
+    auto options = vsg::Options::create();
 #endif
 
     auto windowTraits = vsg::WindowTraits::create();
@@ -220,7 +219,6 @@ int main(int argc, char** argv)
     auto horizonMountainHeight = arguments.value(0.0, "--hmh");
 
     if (arguments.errors()) return arguments.writeErrorMessages(std::cerr);
-
 
 
     auto group = vsg::Group::create();
@@ -264,6 +262,7 @@ int main(int argc, char** argv)
     vsg::ref_ptr<vsg::Node> vsg_scene;
     if (group->getChildren().size()==1) vsg_scene = group->getChild(0);
     else vsg_scene = group;
+
 
     // create the viewer and assign window(s) to it
     auto viewer = vsg::Viewer::create();

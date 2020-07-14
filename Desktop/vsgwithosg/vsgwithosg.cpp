@@ -207,12 +207,11 @@ vsg::ref_ptr<vsg::AnimationPath> readAnimationPath(const vsg::Path& pathFilename
 
 int main(int argc, char** argv)
 {
-    // set up defaults and read command line arguments to override them
+#ifdef USE_VSGXCHANGE
+    auto options = vsg::Options::create(vsgXchange::ReaderWriter_all::create()); // use vsgXchange's for reading and writing 3rd party file formats
+#else
     auto options = vsg::Options::create();
-    #ifdef USE_VSGXCHANGE
-    // add use of vsgXchange's support for reading and writing 3rd party file formats
-    options->readerWriter = vsgXchange::ReaderWriter_all::create();
-    #endif
+#endif
 
     auto windowTraits = vsg::WindowTraits::create();
     windowTraits->windowTitle = "VulkanSceneGraph Window";
