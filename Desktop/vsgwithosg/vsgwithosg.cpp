@@ -293,7 +293,25 @@ int main(int argc, char** argv)
     osgViewer::Viewer osg_viewer;
     {
         osg_viewer.setSceneData(osg_scene);
-        osg_viewer.setUpViewInWindow(windowTraits->width, 0, windowTraits->width, windowTraits->height);
+
+        osg::ref_ptr<osg::GraphicsContext::Traits> traits = new osg::GraphicsContext::Traits;
+        traits->x = windowTraits->width;
+        traits->y = 0;
+        traits->width = windowTraits->width;
+        traits->height = windowTraits->height;
+        traits->windowDecoration = true;
+        traits->doubleBuffer = true;
+        traits->pbuffer = false;
+
+        osg::ref_ptr<osg::GraphicsContext> gc = osg::GraphicsContext::createGraphicsContext(traits.get());
+        if (!gc || !gc->valid())
+        {
+            osg::notify(osg::NOTICE)<<"Error: unable to create graphics window"<<std::endl;
+            return 1;
+        }
+
+        osg_viewer.getCamera()->setGraphicsContext(gc);
+        osg_viewer.getCamera()->setViewport(new osg::Viewport(0, 0, windowTraits->width, windowTraits->height));
 
         osg_viewer.addEventHandler( new osgGA::StateSetManipulator(osg_viewer.getCamera()->getOrCreateStateSet()) );
         osg_viewer.addEventHandler(new osgViewer::StatsHandler);
@@ -304,7 +322,7 @@ int main(int argc, char** argv)
         osg_viewer.realize();
 
         auto osg_window = dynamic_cast<osgViewer::GraphicsWindow*>(osg_viewer.getCamera()->getGraphicsContext());
-        osg_window->setWindowName("OpenSceneGraph Window");
+        if (osg_window) osg_window->setWindowName("OpenSceneGraph Window");
     }
 
     // rendering main loop
