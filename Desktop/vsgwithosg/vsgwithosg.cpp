@@ -313,7 +313,7 @@ int main(int argc, char** argv)
         osg_viewer.getCamera()->setGraphicsContext(gc);
         osg_viewer.getCamera()->setViewport(new osg::Viewport(0, 0, windowTraits->width, windowTraits->height));
 
-        osg_viewer.addEventHandler( new osgGA::StateSetManipulator(osg_viewer.getCamera()->getOrCreateStateSet()) );
+        osg_viewer.addEventHandler(new osgGA::StateSetManipulator(osg_viewer.getCamera()->getOrCreateStateSet()));
         osg_viewer.addEventHandler(new osgViewer::StatsHandler);
 
         if (pathFilename.empty())  osg_viewer.setCameraManipulator(new osgGA::TrackballManipulator());
