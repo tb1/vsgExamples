@@ -325,6 +325,21 @@ int main(int argc, char** argv)
         }
     }
 
+
+    auto layout = vsg::LeftAlignment::create();
+    layout->position = vsg::vec3(0.0, 0.0, 2.0);
+    layout->horizontal = vsg::vec3(1.0, 0.0, 0.0);
+    layout->vertical = vsg::vec3(0.0, 0.0, 1.0);
+    layout->color = vsg::vec4(1.0, 1.0, 0.5, 1.0);
+
+    auto dynamic_text = vsg::Text::create();
+    dynamic_text->text = vsg::stringValue::create(vsg::make_string("Frame : ", 0));
+    dynamic_text->layout = layout;
+    dynamic_text->font = font;
+    dynamic_text->setup(32);
+    scenegraph->addChild(dynamic_text);
+
+
     if (!output_filename.empty())
     {
         vsg::write(scenegraph, output_filename);
@@ -372,6 +387,9 @@ int main(int argc, char** argv)
     // main frame loop
     while (viewer->advanceToNextFrame())
     {
+        dynamic_text->text = vsg::stringValue::create(vsg::make_string("Frame : ", viewer->getFrameStamp()->frameCount));
+        dynamic_text->setup();
+
         // pass any events into EventHandlers assigned to the Viewer
         viewer->handleEvents();
 
