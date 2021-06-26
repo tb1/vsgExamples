@@ -1,5 +1,5 @@
 add_subdirectory(vsginput)
 
-if (vsgImGui_FOUND)
+if (TARGET vsgImGui::vsgImGui)
     add_subdirectory(vsgimgui)
 endif()
